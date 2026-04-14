@@ -1,0 +1,596 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Stamp Card Cost Model v3</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=DM+Sans:wght@300;400;500;600&display=swap');
+  *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+  :root{
+    --bg:#0f0f0f;--surface:#1a1a1a;--surface2:#222;
+    --border:rgba(255,255,255,0.08);--border2:rgba(255,255,255,0.15);
+    --text:#f0ede8;--muted:#888880;
+    --accent:#c8f064;--accent-dim:rgba(200,240,100,0.10);
+    --red:#ff6b6b;--red-dim:rgba(255,107,107,0.10);
+    --amber:#f5a623;--amber-dim:rgba(245,166,35,0.10);
+    --blue:#64b5f6;--blue-dim:rgba(100,181,246,0.10);
+  }
+  body{background:var(--bg);color:var(--text);font-family:'DM Sans',sans-serif;
+       font-size:14px;line-height:1.6;padding:2rem;max-width:960px;margin:0 auto}
+  .hdr{margin-bottom:2.5rem}
+  .hdr h1{font-size:22px;font-weight:600;letter-spacing:-0.02em}
+  .hdr p{color:var(--muted);font-size:13px;margin-top:4px}
+  .badge{display:inline-block;font-size:10px;font-weight:600;padding:2px 10px;
+         border-radius:20px;margin-left:8px;background:var(--amber-dim);
+         color:var(--amber);vertical-align:middle}
+  section{margin-bottom:2.5rem}
+  h2{font-size:11px;font-weight:600;color:var(--muted);text-transform:uppercase;
+     letter-spacing:.10em;margin-bottom:14px;padding-bottom:8px;
+     border-bottom:0.5px solid var(--border)}
+  .g4{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:12px}
+  .g3{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-bottom:12px}
+  .metric{background:var(--surface);border:0.5px solid var(--border);
+          border-radius:10px;padding:14px 16px}
+  .metric .val{font-size:18px;font-weight:600;font-family:'DM Mono',monospace;letter-spacing:-0.03em}
+  .metric .lbl{font-size:11px;color:var(--muted);margin-top:3px}
+  .metric .sub{font-size:11px;margin-top:2px;color:var(--muted)}
+  .metric.hi{border-color:rgba(200,240,100,.35);background:var(--accent-dim)}
+  .metric.hi .val{color:var(--accent)}
+  .metric.wa{border-color:rgba(245,166,35,.35);background:var(--amber-dim)}
+  .metric.wa .val{color:var(--amber)}
+  /* version comparison */
+  .cmp{background:var(--surface);border:0.5px solid var(--border);border-radius:10px;padding:14px 16px}
+  .cmp.v3{border-color:rgba(200,240,100,.35);background:var(--accent-dim)}
+  .cmp-t{font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.08em;
+          margin-bottom:8px;color:var(--muted)}
+  .cmp.v3 .cmp-t{color:var(--accent)}
+  .cr{display:flex;justify-content:space-between;font-size:12px;
+      padding:3px 0;border-bottom:0.5px solid var(--border)}
+  .cr:last-child{border:none}
+  .cr .k{color:var(--muted)}
+  .cr .v{font-family:'DM Mono',monospace;font-weight:500}
+  /* tx chain */
+  .txc{display:flex;border:0.5px solid var(--border);border-radius:12px;overflow:hidden;margin-bottom:12px}
+  .tx{flex:1;padding:13px 8px;text-align:center;border-right:0.5px solid var(--border)}
+  .tx:last-child{border-right:none}
+  .tx.iss{background:var(--blue-dim)}
+  .tx.stp{background:var(--surface)}
+  .tx.r5{background:var(--accent-dim)}
+  .tx.r10{background:rgba(200,240,100,.17)}
+  .tx .tl{font-size:9px;font-weight:600;text-transform:uppercase;letter-spacing:.08em;color:var(--muted);margin-bottom:4px}
+  .tx .tv{font-size:13px;font-weight:600;font-family:'DM Mono',monospace}
+  .tx .ts{font-size:10px;color:var(--muted);margin-top:2px}
+  .tx.iss .tv{color:var(--blue)}
+  .tx.r5 .tv,.tx.r10 .tv{color:var(--accent)}
+  /* table */
+  table{width:100%;border-collapse:collapse;font-size:13px}
+  th{text-align:left;font-size:11px;font-weight:500;color:var(--muted);
+     padding:8px 12px;border-bottom:0.5px solid var(--border);background:var(--surface2)}
+  td{padding:9px 12px;border-bottom:0.5px solid var(--border);color:var(--text);vertical-align:middle}
+  td.mono{font-family:'DM Mono',monospace;font-size:12px}
+  td.r{text-align:right}
+  tr:last-child td{border-bottom:none}
+  .tr-hl td{background:var(--blue-dim)}
+  .tr-tot td{background:var(--surface2);font-weight:600}
+  .tr-warn td{background:var(--amber-dim)}
+  .tr-bad td{background:var(--red-dim)}
+  .tr-good td{background:var(--accent-dim)}
+  .tr-key td{background:rgba(200,240,100,.06);border-left:2px solid var(--accent)}
+  /* colours */
+  .green{color:var(--accent)}.red{color:var(--red)}.amber{color:var(--amber)}.blue{color:var(--blue)}
+  /* tag */
+  .tag{display:inline-block;font-size:10px;font-weight:600;padding:2px 8px;border-radius:20px}
+  .tag.green{background:var(--accent-dim);color:var(--accent)}
+  .tag.amber{background:var(--amber-dim);color:var(--amber)}
+  .tag.red{background:var(--red-dim);color:var(--red)}
+  .tag.blue{background:var(--blue-dim);color:var(--blue)}
+  /* flow */
+  .flow{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:12px}
+  .fb{background:var(--surface);border:0.5px solid var(--border);border-radius:8px;padding:10px 14px;text-align:center}
+  .fb.hi{border-color:var(--accent);background:var(--accent-dim)}
+  .fb .fv{font-size:15px;font-weight:600;font-family:'DM Mono',monospace}
+  .fb .fl{font-size:10px;color:var(--muted);margin-top:2px}
+  .arr{color:var(--muted);font-size:16px}
+  /* verdicts */
+  .vd{display:flex;gap:10px;align-items:flex-start;padding:11px 14px;
+      border-radius:8px;margin-bottom:8px;font-size:13px;line-height:1.5}
+  .vd.ok{background:var(--accent-dim);border:0.5px solid rgba(200,240,100,.30)}
+  .vd.wn{background:var(--amber-dim);border:0.5px solid rgba(245,166,35,.30)}
+  .vd.bd{background:var(--red-dim);border:0.5px solid rgba(255,107,107,.30)}
+  .vd .ic{flex-shrink:0;margin-top:1px}
+  .vd .bd-t{color:var(--text)}
+  .vd .bd-t strong{font-weight:600}
+  /* tabs */
+  .tabs{display:flex;gap:6px;margin-bottom:14px;flex-wrap:wrap}
+  .tab{font-size:12px;padding:5px 14px;border-radius:20px;border:0.5px solid var(--border2);
+       cursor:pointer;background:transparent;color:var(--muted);font-family:'DM Sans',sans-serif}
+  .tab.active{background:var(--accent);color:#0f0f0f;border-color:var(--accent);font-weight:600}
+  .panel{display:none}.panel.active{display:block}
+  /* card */
+  .card{background:var(--surface);border:0.5px solid var(--border);
+        border-radius:12px;padding:1.25rem;margin-bottom:10px}
+  .card.ft{border-color:var(--accent)}
+  /* calculator */
+  .cw{background:var(--surface);border:0.5px solid var(--border);border-radius:12px;padding:1.5rem}
+  .slr{display:flex;align-items:center;gap:12px;margin-bottom:14px}
+  .slr label{width:210px;font-size:12px;color:var(--muted);flex-shrink:0}
+  .slr input[type=range]{flex:1;height:4px;appearance:none;background:var(--border2);
+    border-radius:2px;outline:none;cursor:pointer}
+  .slr input[type=range]::-webkit-slider-thumb{appearance:none;width:16px;height:16px;
+    border-radius:50%;background:var(--accent);cursor:pointer}
+  .slr .out{width:130px;text-align:right;font-family:'DM Mono',monospace;font-size:13px;font-weight:500}
+  .divider{border:none;border-top:0.5px solid var(--border);margin:1.25rem 0}
+  .rb{background:var(--surface2);border-radius:8px;padding:1rem}
+  .rr{display:flex;justify-content:space-between;padding:5px 0;
+      border-bottom:0.5px solid var(--border);font-size:13px}
+  .rr:last-child{border:none}
+  .rr.key{background:rgba(200,240,100,.06);padding:6px 8px;border-radius:6px;margin:4px 0;border:none}
+  .rr.sep{border-top:0.5px solid var(--border2);margin-top:4px;padding-top:8px}
+  .rr .k{color:var(--muted)}
+  .rr .v{font-family:'DM Mono',monospace;font-weight:500}
+  .rv{margin-top:12px;padding:12px 16px;border-radius:8px;font-size:13px;font-weight:600;text-align:center}
+  .zero-note{font-size:12px;color:var(--blue);margin-top:8px;padding:10px 14px;
+             background:var(--blue-dim);border:0.5px solid rgba(100,181,246,.25);
+             border-radius:8px;display:none;line-height:1.6}
+  .note{font-size:11px;color:var(--muted);margin-top:8px;line-height:1.6}
+  .pill{display:inline-flex;align-items:center;background:var(--amber-dim);
+        border:0.5px solid rgba(245,166,35,.3);border-radius:20px;
+        padding:4px 12px;font-size:12px;color:var(--amber);
+        margin:0 4px 6px 0;font-weight:500}
+</style>
+</head>
+<body>
+
+<div class="hdr">
+  <h1>Stamp Card Cost Model <span class="badge">v3 Conservative</span></h1>
+  <p>Unified 55% COGS · 45% gross margin · Operations manager projection · All 3 outlets · 6-month lucky draw</p>
+</div>
+
+<!-- LOCKED ASSUMPTIONS -->
+<section>
+  <h2>Locked assumptions — v3</h2>
+  <div style="margin-bottom:14px">
+    <span class="pill">55% COGS on all items</span>
+    <span class="pill">45% gross margin</span>
+    <span class="pill">Es Teh Jumbo retail Rp 8k → COGS Rp 4,400</span>
+    <span class="pill">Paket retail Rp 26k → COGS Rp 14,300</span>
+    <span class="pill">Card issuance min Rp 40k</span>
+    <span class="pill">Stamp min Rp 35k × 8 visits</span>
+    <span class="pill">iPhone 17 Rp 17,500,000</span>
+  </div>
+  <div class="g4">
+    <div class="metric wa"><div class="val">45%</div><div class="lbl">Gross margin</div><div class="sub">Conservative floor</div></div>
+    <div class="metric"><div class="val">Rp 320,000</div><div class="lbl">Revenue / card</div><div class="sub">Rp 40k + 8 × Rp 35k</div></div>
+    <div class="metric wa"><div class="val">Rp 18,700</div><div class="lbl">Reward COGS / card</div><div class="sub">Rp 4,400 + Rp 14,300</div></div>
+    <div class="metric hi"><div class="val">Rp 125,300</div><div class="lbl">Net profit / card</div><div class="sub">Rp 144k GP − Rp 18.7k</div></div>
+  </div>
+</section>
+
+<!-- VERSION COMPARISON -->
+<section>
+  <h2>Version comparison</h2>
+  <div class="g3">
+    <div class="cmp">
+      <div class="cmp-t">v1 — First model</div>
+      <div class="cr"><span class="k">Margin</span><span class="v">53%</span></div>
+      <div class="cr"><span class="k">Issuance tx</span><span class="v red">Missing</span></div>
+      <div class="cr"><span class="k">Es Teh COGS</span><span class="v">Rp 3,000 est.</span></div>
+      <div class="cr"><span class="k">Paket COGS</span><span class="v">Rp 12,000 est.</span></div>
+      <div class="cr"><span class="k">Revenue / card</span><span class="v">Rp 280,000</span></div>
+      <div class="cr"><span class="k">Net profit / card</span><span class="v">Rp 133,400</span></div>
+      <div class="cr"><span class="k">Break-even</span><span class="v">131 cards</span></div>
+    </div>
+    <div class="cmp">
+      <div class="cmp-t">v2 — Corrected</div>
+      <div class="cr"><span class="k">Margin</span><span class="v">53%</span></div>
+      <div class="cr"><span class="k">Issuance tx</span><span class="v green">Rp 40k added</span></div>
+      <div class="cr"><span class="k">Es Teh COGS</span><span class="v">Rp 2,756 actual</span></div>
+      <div class="cr"><span class="k">Paket COGS</span><span class="v">Rp 13,660 actual</span></div>
+      <div class="cr"><span class="k">Revenue / card</span><span class="v">Rp 320,000</span></div>
+      <div class="cr"><span class="k">Net profit / card</span><span class="v">Rp 153,184</span></div>
+      <div class="cr"><span class="k">Break-even</span><span class="v">102 cards</span></div>
+    </div>
+    <div class="cmp v3">
+      <div class="cmp-t">v3 — Conservative (this)</div>
+      <div class="cr"><span class="k">Margin</span><span class="v amber">45% (55% COGS)</span></div>
+      <div class="cr"><span class="k">Issuance tx</span><span class="v green">Rp 40k</span></div>
+      <div class="cr"><span class="k">Es Teh COGS</span><span class="v amber">Rp 4,400 (55%)</span></div>
+      <div class="cr"><span class="k">Paket COGS</span><span class="v amber">Rp 14,300 (55%)</span></div>
+      <div class="cr"><span class="k">Revenue / card</span><span class="v">Rp 320,000</span></div>
+      <div class="cr"><span class="k">Net profit / card</span><span class="v amber">Rp 125,300</span></div>
+      <div class="cr"><span class="k">Break-even</span><span class="v amber">140 cards</span></div>
+    </div>
+  </div>
+  <p class="note">v3 is your operational floor. If actual COGS tracks closer to v2 actuals (~46%), net profit per card rises to ~Rp 150k and break-even drops to ~117 cards. Every point below 55% COGS is pure upside.</p>
+</section>
+
+<!-- TX CHAIN -->
+<section>
+  <h2>9-visit transaction chain per completed card</h2>
+  <div class="txc">
+    <div class="tx iss">
+      <div class="tl">Visit 1 — issuance</div>
+      <div class="tv">Rp 40,000</div>
+      <div class="ts">2 bonus stamps<br>GP: Rp 18,000</div>
+    </div>
+    <div class="tx stp">
+      <div class="tl">Visits 2–4 (stamps 3–5)</div>
+      <div class="tv">3 × Rp 35k</div>
+      <div class="ts">Revenue: Rp 105,000<br>GP: Rp 47,250</div>
+    </div>
+    <div class="tx r5">
+      <div class="tl">Stamp 5 reward</div>
+      <div class="tv">Es Teh Jumbo</div>
+      <div class="ts">COGS: Rp 4,400<br>Retail: Rp 8,000</div>
+    </div>
+    <div class="tx stp">
+      <div class="tl">Visits 5–9 (stamps 6–10)</div>
+      <div class="tv">5 × Rp 35k</div>
+      <div class="ts">Revenue: Rp 175,000<br>GP: Rp 78,750</div>
+    </div>
+    <div class="tx r10">
+      <div class="tl">Stamp 10 reward</div>
+      <div class="tv">Paket Lengkap</div>
+      <div class="ts">COGS: Rp 14,300<br>Retail: Rp 26,000</div>
+    </div>
+  </div>
+  <p class="note">Total GP: Rp 18,000 + Rp 47,250 + Rp 78,750 = Rp 144,000. Minus reward COGS Rp 18,700 = net Rp 125,300 per completed card.</p>
+</section>
+
+<!-- FULL P&L TABLE -->
+<section>
+  <h2>Complete P&L — per completed card</h2>
+  <table>
+    <thead><tr><th>Item</th><th>Calculation</th><th class="r">Amount</th><th>Notes</th></tr></thead>
+    <tbody>
+      <tr>
+        <td>Card issuance revenue</td><td>1 × Rp 40,000</td>
+        <td class="mono r">Rp 40,000</td><td>Visit 1 — triggers card + 2 stamps</td>
+      </tr>
+      <tr>
+        <td>Stamp-earning revenue</td><td>8 × Rp 35,000</td>
+        <td class="mono r">Rp 280,000</td><td>Visits 2–9, stamps 3–10</td>
+      </tr>
+      <tr class="tr-tot">
+        <td>Total revenue per card</td><td></td>
+        <td class="mono r">Rp 320,000</td><td></td>
+      </tr>
+      <tr>
+        <td>COGS on revenue (55%)</td><td>Rp 320,000 × 55%</td>
+        <td class="mono r red">– Rp 176,000</td><td>Unified rate across all sold items</td>
+      </tr>
+      <tr class="tr-tot">
+        <td>Gross profit (45%)</td><td>Rp 320,000 × 45%</td>
+        <td class="mono r green">Rp 144,000</td><td>Before reward COGS</td>
+      </tr>
+      <tr>
+        <td>Es Teh Jumbo COGS (stamp-5 reward)</td><td>Rp 8,000 × 55%</td>
+        <td class="mono r red">– Rp 4,400</td><td>Conservative buffer</td>
+      </tr>
+      <tr>
+        <td>Nasi Ayam Rempah Kumplit COGS (stamp-10 reward)</td><td>Rp 26,000 × 55%</td>
+        <td class="mono r red">– Rp 14,300</td><td>Conservative buffer</td>
+      </tr>
+      <tr class="tr-tot">
+        <td>Total reward COGS</td><td></td>
+        <td class="mono r red">– Rp 18,700</td><td>5.84% of card revenue</td>
+      </tr>
+      <tr class="tr-key">
+        <td><strong>Net profit per completed card</strong></td><td>144,000 − 18,700</td>
+        <td class="mono r green"><strong>Rp 125,300</strong></td><td>Funds the prize allocation</td>
+      </tr>
+      <tr>
+        <td>iPhone allocation at break-even (140 cards)</td><td>Rp 17,500,000 ÷ 140</td>
+        <td class="mono r red">– Rp 125,000</td><td></td>
+      </tr>
+      <tr class="tr-key">
+        <td><strong>Surplus at exact break-even</strong></td><td></td>
+        <td class="mono r green"><strong>+ Rp 42,000</strong></td><td>Each additional card = Rp 125,300 surplus</td>
+      </tr>
+    </tbody>
+  </table>
+</section>
+
+<!-- BREAK-EVEN FLOW -->
+<section>
+  <h2>Break-even equation</h2>
+  <div class="flow">
+    <div class="fb"><div class="fv">Rp 17,500,000</div><div class="fl">iPhone cost</div></div>
+    <div class="arr">÷</div>
+    <div class="fb"><div class="fv">Rp 125,300</div><div class="fl">Net profit / card</div></div>
+    <div class="arr">=</div>
+    <div class="fb hi"><div class="fv green">140 cards</div><div class="fl">Minimum to fund iPhone</div></div>
+    <div class="arr">÷</div>
+    <div class="fb"><div class="fv">6 months</div><div class="fl">Duration</div></div>
+    <div class="arr">=</div>
+    <div class="fb hi"><div class="fv green">24 / month</div><div class="fl">~8 per outlet / month</div></div>
+  </div>
+  <p class="note">8 completed cards per outlet per month = 2 per week per outlet. Highly achievable at 100–200 daily pax even under the conservative 55% COGS assumption.</p>
+</section>
+
+<!-- SCENARIO TABLE -->
+<section>
+  <h2>Scenarios — completed cards over 6 months</h2>
+  <table>
+    <thead>
+      <tr>
+        <th>Completed cards</th><th>Total revenue</th><th>Gross profit (45%)</th>
+        <th>Reward COGS</th><th>iPhone cost</th><th class="r">Net P&L</th><th></th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr class="tr-bad">
+        <td>50</td><td class="mono">Rp 16,000,000</td><td class="mono">Rp 7,200,000</td>
+        <td class="mono">Rp 935,000</td><td class="mono">Rp 17,500,000</td>
+        <td class="mono r red">– Rp 11,235,000</td><td><span class="tag red">Loss</span></td>
+      </tr>
+      <tr class="tr-warn">
+        <td>100</td><td class="mono">Rp 32,000,000</td><td class="mono">Rp 14,400,000</td>
+        <td class="mono">Rp 1,870,000</td><td class="mono">Rp 17,500,000</td>
+        <td class="mono r amber">– Rp 4,970,000</td><td><span class="tag amber">Near</span></td>
+      </tr>
+      <tr class="tr-hl">
+        <td><strong>140 ★ break-even</strong></td><td class="mono">Rp 44,800,000</td>
+        <td class="mono">Rp 20,160,000</td><td class="mono">Rp 2,618,000</td>
+        <td class="mono">Rp 17,500,000</td>
+        <td class="mono r green"><strong>+ Rp 42,000</strong></td><td><span class="tag green">Break-even</span></td>
+      </tr>
+      <tr>
+        <td>250</td><td class="mono">Rp 80,000,000</td><td class="mono">Rp 36,000,000</td>
+        <td class="mono">Rp 4,675,000</td><td class="mono">Rp 17,500,000</td>
+        <td class="mono r green">+ Rp 13,825,000</td><td><span class="tag green">Profit</span></td>
+      </tr>
+      <tr>
+        <td>500</td><td class="mono">Rp 160,000,000</td><td class="mono">Rp 72,000,000</td>
+        <td class="mono">Rp 9,350,000</td><td class="mono">Rp 17,500,000</td>
+        <td class="mono r green">+ Rp 45,150,000</td><td><span class="tag green">Strong</span></td>
+      </tr>
+      <tr class="tr-good">
+        <td>1,890 (base case)</td><td class="mono">Rp 604,800,000</td>
+        <td class="mono">Rp 272,160,000</td><td class="mono">Rp 35,343,000</td>
+        <td class="mono">Rp 17,500,000</td>
+        <td class="mono r green">+ Rp 219,317,000</td><td><span class="tag green">Excellent</span></td>
+      </tr>
+    </tbody>
+  </table>
+  <p class="note">Base case (1,890 cards): 150 pax/day × 20% take × 35% completion × 180 days. Reward food COGS at base case (Rp 35.3jt) is 2× the iPhone cost — this is your primary ongoing budget line, not the prize.</p>
+</section>
+
+<!-- REALISM TABS -->
+<section>
+  <h2>Is 140 completed cards realistic in 6 months?</h2>
+  <div class="tabs">
+    <button class="tab active" onclick="st('pess',this)">Pessimistic</button>
+    <button class="tab" onclick="st('base',this)">Base case ★</button>
+    <button class="tab" onclick="st('opt',this)">Optimistic</button>
+  </div>
+  <div id="pess" class="panel active card">
+    <p style="font-size:13px;color:var(--muted);margin-bottom:10px">5% of pax take a card · 20% complete it</p>
+    <div style="background:var(--surface2);border-radius:8px;padding:1rem">
+      <div class="rr"><span class="k">Cards issued (6 mo)</span><span class="v">1,350</span></div>
+      <div class="rr"><span class="k">Completed cards</span><span class="v">270</span></div>
+      <div class="rr"><span class="k">vs. 140 needed</span><span class="v green">1.9× over target</span></div>
+      <div class="rr"><span class="k">Reward COGS</span><span class="v amber">Rp 5,049,000</span></div>
+      <div class="rr"><span class="k">Net P&L</span><span class="v green">+ Rp 16,281,000</span></div>
+    </div>
+    <p class="note">Even at very low participation you clear break-even by nearly 2×.</p>
+  </div>
+  <div id="base" class="panel card ft">
+    <p style="font-size:13px;color:var(--muted);margin-bottom:10px">20% take · 35% complete — F&B industry benchmark</p>
+    <div style="background:var(--surface2);border-radius:8px;padding:1rem">
+      <div class="rr"><span class="k">Cards issued (6 mo)</span><span class="v">5,400</span></div>
+      <div class="rr"><span class="k">Completed cards</span><span class="v">1,890</span></div>
+      <div class="rr"><span class="k">vs. 140 needed</span><span class="v green">13.5× over target</span></div>
+      <div class="rr"><span class="k">Reward COGS (budget this)</span><span class="v amber">Rp 35,343,000</span></div>
+      <div class="rr"><span class="k">Net P&L</span><span class="v green">+ Rp 219,317,000</span></div>
+    </div>
+    <p class="note">★ At base case the iPhone is only 8% of total reward costs. Plan ~315 free paket + 315 es teh per month across outlets.</p>
+  </div>
+  <div id="opt" class="panel card">
+    <p style="font-size:13px;color:var(--muted);margin-bottom:10px">30% take · 45% complete — strong word-of-mouth</p>
+    <div style="background:var(--surface2);border-radius:8px;padding:1rem">
+      <div class="rr"><span class="k">Cards issued (6 mo)</span><span class="v">8,100</span></div>
+      <div class="rr"><span class="k">Completed cards</span><span class="v">3,645</span></div>
+      <div class="rr"><span class="k">vs. 140 needed</span><span class="v green">26× over target</span></div>
+      <div class="rr"><span class="k">Reward COGS (budget this)</span><span class="v amber">Rp 68,131,500</span></div>
+      <div class="rr"><span class="k">Net P&L</span><span class="v green">+ Rp 388,483,500</span></div>
+    </div>
+    <p class="note">At this level budget ~Rp 11.4jt/month in reward food costs. Ensure kitchen capacity and supplier volumes are locked in before launch.</p>
+  </div>
+</section>
+
+<!-- INTERACTIVE CALCULATOR -->
+<section>
+  <h2>Interactive calculator</h2>
+  <div class="cw">
+
+    <div class="slr">
+      <label>Daily pax (all outlets)</label>
+      <input type="range" min="50" max="300" value="150" step="10" id="sl-pax" oninput="calc()">
+      <span class="out" id="o-pax">150 pax</span>
+    </div>
+    <div class="slr">
+      <label>Card issuance minimum (k)</label>
+      <input type="range" min="25" max="60" value="40" step="5" id="sl-iss" oninput="calc()">
+      <span class="out" id="o-iss">Rp 40k</span>
+    </div>
+    <div class="slr">
+      <label>Stamp minimum (k)</label>
+      <input type="range" min="25" max="60" value="35" step="5" id="sl-stp" oninput="calc()">
+      <span class="out" id="o-stp">Rp 35k</span>
+    </div>
+    <div class="slr">
+      <label>% of pax who take a card</label>
+      <input type="range" min="5" max="50" value="20" step="5" id="sl-take" oninput="calc()">
+      <span class="out" id="o-take">20%</span>
+    </div>
+    <div class="slr">
+      <label>% of card-holders who complete</label>
+      <input type="range" min="5" max="60" value="35" step="5" id="sl-comp" oninput="calc()">
+      <span class="out" id="o-comp">35%</span>
+    </div>
+    <div class="slr">
+      <label>Number of iPhones (0 = no iPhone)</label>
+      <input type="range" min="0" max="5" value="1" step="1" id="sl-ip" oninput="calc()">
+      <span class="out" id="o-ip">1 unit</span>
+    </div>
+
+    <div id="zero-note" class="zero-note">
+      iPhone set to 0 — the P&L below shows pure stamp card surplus with no prize cost deducted.
+      Use "Prize budget available" to size any alternative prize (cash, vouchers, gadgets, travel, etc.).
+    </div>
+
+    <hr class="divider">
+
+    <div class="rb">
+      <div class="rr"><span class="k">Revenue per completed card</span><span class="v" id="r-rpc">—</span></div>
+      <div class="rr"><span class="k">Gross profit per card (45%)</span><span class="v" id="r-gpc">—</span></div>
+      <div class="rr"><span class="k">Reward COGS per card</span><span class="v red" id="r-rcpc">—</span></div>
+      <div class="rr key"><span class="k">Net profit per card</span><span class="v" id="r-npc">—</span></div>
+      <div class="rr"><span class="k">Break-even cards needed</span><span class="v" id="r-be">—</span></div>
+
+      <hr class="divider" style="margin:.75rem 0">
+
+      <div class="rr"><span class="k">Cards issued (6 months)</span><span class="v" id="r-iss">—</span></div>
+      <div class="rr"><span class="k">Completed cards</span><span class="v" id="r-comp">—</span></div>
+      <div class="rr"><span class="k">Total loyalty revenue</span><span class="v" id="r-rev">—</span></div>
+      <div class="rr"><span class="k">Total gross profit (45%)</span><span class="v" id="r-gp">—</span></div>
+      <div class="rr"><span class="k">Total reward COGS</span><span class="v red" id="r-rc">—</span></div>
+      <div class="rr" id="ip-row"><span class="k">iPhone prize cost</span><span class="v red" id="r-ip">—</span></div>
+      <div class="rr key sep"><span class="k" id="pnl-lbl">Net P&L from promo</span><span class="v" id="r-pnl">—</span></div>
+      <div class="rr" id="bgt-row" style="display:none">
+        <span class="k" style="color:var(--blue)">Prize budget available (no iPhone)</span>
+        <span class="v blue" id="r-bgt">—</span>
+      </div>
+    </div>
+
+    <div id="res-v" class="rv"></div>
+  </div>
+</section>
+
+<!-- CONSIDERATIONS -->
+<section>
+  <h2>Key considerations</h2>
+  <div class="vd ok">
+    <span class="ic">✓</span>
+    <div class="bd-t"><strong>55% COGS is your floor, not your ceiling.</strong> v2 actual COGS data pointed to ~46–47%. If operations track there, net profit per card rises to ~Rp 150k and break-even drops to ~117 cards. Every percentage point below 55% goes straight to the bottom line.</div>
+  </div>
+  <div class="vd wn">
+    <span class="ic">▲</span>
+    <div class="bd-t"><strong>Reward food COGS is your biggest ongoing cost — not the iPhone.</strong> At base case, you spend Rp 35.3jt feeding free meals vs Rp 17.5jt on the phone. Track reward redemptions per outlet monthly and set a monthly food cost budget for the program separately from regular ops COGS.</div>
+  </div>
+  <div class="vd ok">
+    <span class="ic">✓</span>
+    <div class="bd-t"><strong>Set iPhone to 0 to size any other prize.</strong> The "prize budget available" line tells you exactly how much the program generates — use it to price a cash prize, Samsung phone, travel voucher, or split prizes across outlets. The loyalty economics are the same regardless of what you put in the winner's hands.</div>
+  </div>
+  <div class="vd wn">
+    <span class="ic">▲</span>
+    <div class="bd-t"><strong>Lucky draw entry controls.</strong> Require name + phone number written on each completed card. One entry per completed card, one winner. Lock submitted cards in a sealed box at each outlet. Announce draw date on the card design at launch — transparency drives trust and participation.</div>
+  </div>
+</section>
+
+<script>
+const MARGIN=0.45,COGS_RATE=0.55;
+const ESTEH_R=8000,PAKET_R=26000;
+const ESTEH_C=ESTEH_R*COGS_RATE;   // 4400
+const PAKET_C=PAKET_R*COGS_RATE;   // 14300
+const REWARD_C=ESTEH_C+PAKET_C;    // 18700
+const IP_PRICE=17500000;
+const DAYS=180;
+
+function ri(id){return document.getElementById(id)}
+function fN(n){return 'Rp '+Math.round(Math.abs(n)).toLocaleString('id-ID')}
+function fS(n){return (n>=0?'+ ':'– ')+fN(n)}
+
+function st(id,btn){
+  document.querySelectorAll('.tab').forEach(t=>t.classList.remove('active'));
+  document.querySelectorAll('.panel').forEach(p=>p.classList.remove('active'));
+  ri(id).classList.add('active');btn.classList.add('active');
+}
+
+function calc(){
+  const pax    =+ri('sl-pax').value;
+  const iss    =+ri('sl-iss').value*1000;
+  const stp    =+ri('sl-stp').value*1000;
+  const tkPct  =+ri('sl-take').value/100;
+  const coPct  =+ri('sl-comp').value/100;
+  const nIp    =+ri('sl-ip').value;
+
+  ri('o-pax').textContent =pax+' pax';
+  ri('o-iss').textContent ='Rp '+(iss/1000)+'k';
+  ri('o-stp').textContent ='Rp '+(stp/1000)+'k';
+  ri('o-take').textContent=(tkPct*100)+'%';
+  ri('o-comp').textContent=(coPct*100)+'%';
+  ri('o-ip').textContent  =nIp===0?'0 units (no prize)':nIp+' unit'+(nIp>1?'s':'');
+
+  // 0-iPhone note
+  ri('zero-note').style.display=nIp===0?'block':'none';
+
+  // per-card
+  const rpc=iss+(8*stp);
+  const gpc=rpc*MARGIN;
+  const npc=gpc-REWARD_C;
+  const be =nIp>0?Math.ceil((nIp*IP_PRICE)/npc):0;
+
+  ri('r-rpc').textContent=fN(rpc);
+  ri('r-gpc').textContent=fN(gpc);
+  ri('r-rcpc').textContent='– '+fN(REWARD_C);
+  ri('r-npc').textContent=fN(npc);
+  ri('r-npc').style.color=npc>=0?'var(--accent)':'var(--red)';
+  ri('r-be').textContent=nIp>0
+    ?be.toLocaleString('id-ID')+' cards ('+Math.ceil(be/6)+'/month)'
+    :'N/A — no prize cost set';
+
+  // totals
+  const issued=Math.round(pax*tkPct*DAYS);
+  const compl =Math.round(issued*coPct);
+  const tRev  =compl*rpc;
+  const tGP   =tRev*MARGIN;
+  const tRC   =compl*REWARD_C;
+  const ipCost=nIp*IP_PRICE;
+  const pnl   =tGP-tRC-ipCost;
+
+  ri('r-iss').textContent =issued.toLocaleString('id-ID')+' cards';
+  ri('r-comp').textContent=compl.toLocaleString('id-ID')+' cards';
+  ri('r-rev').textContent =fN(tRev);
+  ri('r-gp').textContent  =fN(tGP);
+  ri('r-rc').textContent  ='– '+fN(tRC);
+
+  if(nIp===0){
+    ri('ip-row').style.display='none';
+    ri('bgt-row').style.display='flex';
+    ri('r-bgt').textContent=fN(pnl);
+    ri('pnl-lbl').textContent='Net P&L (no prize deducted)';
+  } else {
+    ri('ip-row').style.display='flex';
+    ri('bgt-row').style.display='none';
+    ri('r-ip').textContent='– '+fN(ipCost);
+    ri('pnl-lbl').textContent='Net P&L from promo';
+  }
+  ri('r-pnl').textContent=fS(pnl);
+  ri('r-pnl').style.color=pnl>=0?'var(--accent)':'var(--red)';
+
+  // verdict
+  const v=ri('res-v');
+  if(nIp===0){
+    v.textContent='📊 Prize budget mode — net surplus above is your full prize allocation';
+    v.style.cssText='background:var(--blue-dim);color:var(--blue);border:0.5px solid rgba(100,181,246,0.3)';
+  } else if(pnl>=20000000){
+    v.textContent='✓ Strongly profitable — promo generates significant surplus beyond prize cost';
+    v.style.cssText='background:var(--accent-dim);color:var(--accent);border:0.5px solid rgba(200,240,100,0.3)';
+  } else if(pnl>=0){
+    v.textContent='~ Break-even to moderate profit — prize cost covered';
+    v.style.cssText='background:var(--amber-dim);color:var(--amber);border:0.5px solid rgba(245,166,35,0.3)';
+  } else if(pnl>=-5000000){
+    v.textContent='▲ Small loss — try raising issuance or stamp minimum by Rp 5k';
+    v.style.cssText='background:var(--amber-dim);color:var(--amber);border:0.5px solid rgba(245,166,35,0.3)';
+  } else {
+    v.textContent='✗ Significant loss — too few completions or minimums too low';
+    v.style.cssText='background:var(--red-dim);color:var(--red);border:0.5px solid rgba(255,107,107,0.3)';
+  }
+}
+calc();
+</script>
+</body>
+</html>
